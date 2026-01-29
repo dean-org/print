@@ -14,7 +14,7 @@ on:
         type: string
   push:
     branches:
-      - myanmar
+      - myanmar-1
 
 jobs:
   build-maven-print:
