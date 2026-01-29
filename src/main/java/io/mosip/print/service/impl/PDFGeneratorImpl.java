@@ -26,6 +26,9 @@ import io.mosip.print.logger.PrintLogger;
 import io.mosip.print.model.CertificateEntry;
 import io.mosip.print.spi.PDFGenerator;
 import io.mosip.print.util.EmptyCheckUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -39,6 +42,8 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.Provider;
@@ -48,42 +53,35 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * The PdfGeneratorImpl is the class you will use most when converting processed
- * Template to PDF. It contains a series of methods that accept processed
- * Template as a {@link String}, {@link File}, or {@link InputStream}, and
- * convert it to PDF in the form of an {@link OutputStream}, {@link File}
+ * PDFGeneratorImpl with robust Myanmar fallback:
+ * - Replaces elements with class="myanmar" by inline PNG images rendered either with Java2D
+ *   or, when Java2D shaping fails, with pango-view (if installed).
  *
- * This version includes a fallback that rasterizes Myanmar text spans (class="myanmar")
- * into inline PNG images before converting HTML → PDF, which avoids needing pdfCalligraph
- * or headless Chrome on servers where those are not available.
- *
- * Trade-off: Myanmar text becomes images (not selectable/searchable) but shapes correctly.
- *
+ * Notes:
+ * - This makes Myanmar text visually correct without pdfCalligraph or Chrome.
+ * - Trade-off: those Myanmar texts are images (not selectable/searchable).
+ * - Requires jsoup dependency for robust HTML manipulation:
+ *   <dependency>
+ *     <groupId>org.jsoup</groupId>
+ *     <artifactId>jsoup</artifactId>
+ *     <version>1.16.1</version>
+ *   </dependency>
  */
 @Component
 public class PDFGeneratorImpl implements PDFGenerator {
 	private static final Logger LOGGER = PrintLogger.getLogger(PDFGeneratorImpl.class);
 
 	private static final String SHA256 = "SHA256";
-
 	private static final String OUTPUT_FILE_EXTENSION = ".pdf";
 
 	@Value("${mosip.kernel.pdf_owner_password}")
 	private String pdfOwnerPassword;
 
-	// Simple cache to avoid re-rendering identical Burmese strings repeatedly during a single JVM run
+	// In-memory cache to avoid re-rendering identical strings repeatedly
 	private final Map<String, String> myanmarImageCache = new ConcurrentHashMap<>();
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see io.mosip.kernel.core.pdfgenerator.spi.PDFGenerator#generate(java.io.
-	 * InputStream)
-	 */
 	@Override
 	public OutputStream generate(InputStream is) throws IOException {
 		isValidInputStream(is);
@@ -97,12 +95,6 @@ public class PDFGeneratorImpl implements PDFGenerator {
 		return os;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see
-	 * io.mosip.kernel.core.pdfgenerator.spi.PDFGenerator#generate(java.lang.String)
-	 */
 	@Override
 	public OutputStream generate(String template) throws IOException {
 		OutputStream os = new ByteArrayOutputStream();
@@ -115,13 +107,6 @@ public class PDFGeneratorImpl implements PDFGenerator {
 		return os;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see
-	 * io.mosip.kernel.core.pdfgenerator.spi.PDFGenerator#generate(java.lang.String,
-	 * java.lang.String, java.lang.String)
-	 */
 	@Override
 	public void generate(String templatePath, String outpuFilePath, String outputFileName) throws IOException {
 		File outputFile = new File(outpuFilePath + outputFileName + OUTPUT_FILE_EXTENSION);
@@ -131,97 +116,82 @@ public class PDFGeneratorImpl implements PDFGenerator {
 			throw new PDFGeneratorException(PDFGeneratorExceptionCodeConstant.PDF_EXCEPTION.getErrorCode(),
 					PDFGeneratorExceptionCodeConstant.PDF_EXCEPTION.getErrorMessage(), e);
 		}
-
 	}
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see io.mosip.kernel.core.pdfgenerator.spi.PDFGenerator#generate(java.io.
-	 * InputStream, java.lang.String)
-	 */
 	@Override
 	public OutputStream generate(InputStream is, String resourceLoc) throws IOException {
 		isValidInputStream(is);
+
+		// Read the full incoming HTML once
+		byte[] originalHtmlBytes = is.readAllBytes();
+
+		// Setup PDF writer/document with try-with-resources to ensure close
 		OutputStream os = new ByteArrayOutputStream();
-		PdfWriter pdfWriter = new PdfWriter(os);
-		PdfDocument pdfDoc = new PdfDocument(pdfWriter);
+
 		ConverterProperties converterProperties = new ConverterProperties();
-		pdfDoc.setTagged();
-		PageSize pageSize = PageSize.A4.rotate();
-		pdfDoc.setDefaultPageSize(pageSize);
-		float screenWidth = CssUtils.parseAbsoluteLength("" + pageSize.getWidth());
-		MediaDeviceDescription mediaDescription = new MediaDeviceDescription(MediaType.SCREEN);
-		mediaDescription.setWidth(screenWidth);
-
-		// DefaultFontProvider - keep this to allow embedding fonts for non-rasterized content
-		DefaultFontProvider dfp = new DefaultFontProvider(false, false, false);
-		converterProperties.setMediaDeviceDescription(mediaDescription);
-		converterProperties.setFontProvider(dfp);
-		converterProperties.setBaseUri(resourceLoc);
 		converterProperties.setCreateAcroForm(true);
+		converterProperties.setBaseUri(resourceLoc);
 
-		// Settings for Myanmar rasterization
-		String myanmarFontPath = "/home/mosip/fonts/NotoSansMyanmar-Regular.ttf"; // ensure this exists
-		float myanmarFontSize = 28f; // tune this to visually match your CSS
+		MediaDeviceDescription mediaDescription = new MediaDeviceDescription(MediaType.SCREEN);
+		float screenWidth = CssUtils.parseAbsoluteLength("" + PageSize.A4.rotate().getWidth());
+		mediaDescription.setWidth(screenWidth);
+		converterProperties.setMediaDeviceDescription(mediaDescription);
 
+		// Font provider (register fonts if available)
+		DefaultFontProvider dfp = new DefaultFontProvider(false, false, false);
+		converterProperties.setFontProvider(dfp);
+
+		// Myanmar font path & size (adjust as needed)
+		String myanmarFontPath = "/home/mosip/fonts/NotoSansMyanmar-Regular.ttf";
+		float myanmarFontSize = 28f;
+
+		// try to register font with DefaultFontProvider (optional)
 		try {
-			// Read the full incoming HTML once (the InputStream may be a Velocity-processed HTML)
-			byte[] originalHtmlBytes = is.readAllBytes();
-
-			// Register the font in the font provider if available (so other text can use it)
-			try {
-				File fontFile = new File(myanmarFontPath);
-				if (fontFile.exists() && fontFile.canRead()) {
-					try {
-						dfp.addFont(myanmarFontPath);
-					} catch (Exception e) {
-						LOGGER.warn("Could not add font to DefaultFontProvider: {}", e.getMessage());
-					}
-				} else {
-					LOGGER.warn("Myanmar font file not found or unreadable: {}", myanmarFontPath);
-				}
-			} catch (Exception e) {
-				LOGGER.warn("Error while registering Myanmar font: {}", e.getMessage());
+			File fontFile = new File(myanmarFontPath);
+			if (fontFile.exists() && fontFile.canRead()) {
+				dfp.addFont(myanmarFontPath);
+			} else {
+				LOGGER.warn("Myanmar font not found/readable at {}", myanmarFontPath);
 			}
+		} catch (Exception e) {
+			LOGGER.warn("Failed to add myanmar font to provider: {}", e.getMessage());
+		}
 
-			// Try to rasterize Myanmar spans. Work on a fresh InputStream copy.
-			InputStream processedHtmlInput;
-			try (InputStream htmlStreamForReplace = new ByteArrayInputStream(originalHtmlBytes)) {
-				processedHtmlInput = replaceMyanmarSpansWithImages(htmlStreamForReplace, myanmarFontPath, myanmarFontSize);
-			} catch (Exception e) {
-				LOGGER.warn("Myanmar rasterization failed, falling back to original HTML: {}", e.getMessage());
-				processedHtmlInput = new ByteArrayInputStream(originalHtmlBytes);
-			}
+		// Process HTML: replace .myanmar elements with images
+		byte[] processedHtmlBytes;
+		try (InputStream tmpIn = new ByteArrayInputStream(originalHtmlBytes)) {
+			processedHtmlBytes = replaceMyanmarElementsWithImages(tmpIn, myanmarFontPath, myanmarFontSize);
+		} catch (Exception e) {
+			LOGGER.warn("Myanmar rasterization failed, using original HTML: {}", e.getMessage());
+			processedHtmlBytes = originalHtmlBytes;
+		}
 
-			HtmlConverter.convertToPdf(processedHtmlInput, pdfDoc, converterProperties);
+		// Convert to PDF and ensure PdfDocument is closed
+		try (PdfWriter pdfWriter = new PdfWriter(os);
+			 PdfDocument pdfDoc = new PdfDocument(pdfWriter)) {
+			pdfDoc.setTagged();
+			pdfDoc.setDefaultPageSize(PageSize.A4.rotate());
+			HtmlConverter.convertToPdf(new ByteArrayInputStream(processedHtmlBytes), pdfDoc, converterProperties);
 		} catch (Exception e) {
 			throw new PDFGeneratorException(PDFGeneratorExceptionCodeConstant.PDF_EXCEPTION.getErrorCode(),
 					e.getMessage(), e);
 		}
+
 		return os;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see io.mosip.kernel.core.pdfgenerator.spi.PDFGenerator#asPDF(java.util.List)
-	 */
 	@Override
 	public byte[] asPDF(List<BufferedImage> bufferedImages) throws IOException {
 		byte[] scannedPdfFile = null;
 
 		try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
-
 			PdfWriter pdfWriter = new PdfWriter(byteArrayOutputStream);
 			Document document = new Document(new PdfDocument(pdfWriter));
-
 			for (BufferedImage bufferedImage : bufferedImages) {
 				Image image = new Image(ImageDataFactory.create(getImageBytesFromBufferedImage(bufferedImage)));
 				image.scaleToFit(600, 750);
 				document.add(image);
 			}
-
 			document.close();
 			pdfWriter.close();
 			scannedPdfFile = byteArrayOutputStream.toByteArray();
@@ -233,23 +203,13 @@ public class PDFGeneratorImpl implements PDFGenerator {
 	}
 
 	private byte[] getImageBytesFromBufferedImage(BufferedImage bufferedImage) throws IOException {
-		byte[] imageInByte;
-
-		ByteArrayOutputStream imagebyteArray = new ByteArrayOutputStream();
-		ImageIO.write(bufferedImage, "jpg", imagebyteArray);
-		imagebyteArray.flush();
-		imageInByte = imagebyteArray.toByteArray();
-		imagebyteArray.close();
-
-		return imageInByte;
+		try (ByteArrayOutputStream imagebyteArray = new ByteArrayOutputStream()) {
+			ImageIO.write(bufferedImage, "jpg", imagebyteArray);
+			imagebyteArray.flush();
+			return imagebyteArray.toByteArray();
+		}
 	}
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see
-	 * io.mosip.kernel.core.pdfgenerator.spi.PDFGenerator#mergePDF(java.util.List)
-	 */
 	@Override
 	public byte[] mergePDF(List<URL> pdfFiles) throws IOException {
 		try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
@@ -272,9 +232,8 @@ public class PDFGeneratorImpl implements PDFGenerator {
 
 	@Override
 	public OutputStream signAndEncryptPDF(byte[] pdf, io.mosip.print.model.Rectangle rectangle,
-										  String reason, int pageNumber, Provider provider,
-										  CertificateEntry<X509Certificate, PrivateKey> certificateEntry, String password)
-			throws IOException, GeneralSecurityException {
+			String reason, int pageNumber, Provider provider, CertificateEntry<X509Certificate, PrivateKey> certificateEntry,
+			String password) throws IOException, GeneralSecurityException {
 		OutputStream outputStream = new ByteArrayOutputStream();
 		PdfReader pdfReader = null;
 		PdfStamper pdfStamper = null;
@@ -288,9 +247,7 @@ public class PDFGeneratorImpl implements PDFGenerator {
 						com.itextpdf.text.pdf.PdfWriter.ENCRYPTION_AES_256);
 			}
 			PdfSignatureAppearance signAppearance = pdfStamper.getSignatureAppearance();
-
 			signAppearance.setReason(reason);
-			// comment next line to have an invisible signature
 			signAppearance.setVisibleSignature(
 					new Rectangle(rectangle.getLlx(), rectangle.getLly(), rectangle.getUrx(), rectangle.getUry()),
 					pageNumber, null);
@@ -313,12 +270,10 @@ public class PDFGeneratorImpl implements PDFGenerator {
 					provider.getName());
 			ExternalDigest digest = new BouncyCastleDigest();
 
-			// Sign the document using the detached mode, CMS or CAdES equivalent.
 			MakeSignature.signDetached(signAppearance, digest, pks, certificateEntry.getChain(), crlList, ocspClient,
 					tsaClient, 0, CryptoStandard.CMS);
 
 			pdfStamper.close();
-
 		} catch (DocumentException e) {
 			throw new PDFGeneratorException(PDFGeneratorExceptionCodeConstant.PDF_EXCEPTION.getErrorCode(),
 					e.getMessage(), e);
@@ -334,11 +289,6 @@ public class PDFGeneratorImpl implements PDFGenerator {
 		return outputStream;
 	}
 
-	/*
-
-	 */
-
-	// Quietly close the pdfStamper.
 	private void closeQuietly(final PdfStamper pdfStamper) throws IOException {
 		try {
 			pdfStamper.close();
@@ -356,19 +306,18 @@ public class PDFGeneratorImpl implements PDFGenerator {
 		}
 	}
 
-	// Render Myanmar text to a PNG data: URI. Uses a basic in-memory cache.
-	private String renderTextToDataUrl(String text, String fontPath, float fontSize, Color color) throws IOException, FontFormatException {
+	// Render text with Java2D (TextLayout). Returns data: URI PNG. May fail on some headless setups.
+	private String renderTextToDataUrlJava2D(String text, String fontPath, float fontSize, Color color)
+			throws IOException, FontFormatException {
 		if (text == null) return "";
 
-		String cacheKey = text + "|" + fontSize;
+		String cacheKey = "j2d|" + fontPath + "|" + fontSize + "|" + text;
 		String cached = myanmarImageCache.get(cacheKey);
 		if (cached != null) return cached;
 
-		// Load the TTF font from file
 		Font baseFont = Font.createFont(Font.TRUETYPE_FONT, new File(fontPath));
 		Font font = baseFont.deriveFont(Font.PLAIN, fontSize);
 
-		// compute bounds using TextLayout (better for complex scripts)
 		BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D g2tmp = tmp.createGraphics();
 		try {
@@ -400,8 +349,7 @@ public class PDFGeneratorImpl implements PDFGenerator {
 
 			try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
 				ImageIO.write(img, "png", baos);
-				byte[] pngBytes = baos.toByteArray();
-				String base64 = Base64.getEncoder().encodeToString(pngBytes);
+				String base64 = Base64.getEncoder().encodeToString(baos.toByteArray());
 				String dataUrl = "data:image/png;base64," + base64;
 				myanmarImageCache.put(cacheKey, dataUrl);
 				return dataUrl;
@@ -411,49 +359,104 @@ public class PDFGeneratorImpl implements PDFGenerator {
 		}
 	}
 
+	// Render using pango-view (requires pango-view on PATH). Returns data: URI PNG.
+	private String renderTextWithPango(String text, String fontSpec, int pixelSize) throws IOException, InterruptedException {
+		if (text == null) return "";
+		String cacheKey = "pango|" + fontSpec + "|" + pixelSize + "|" + text;
+		String cached = myanmarImageCache.get(cacheKey);
+		if (cached != null) return cached;
+
+		Path tmpText = Files.createTempFile("pango_text_", ".txt");
+		Path tmpPng = Files.createTempFile("pango_out_", ".png");
+		try {
+			Files.writeString(tmpText, text, StandardCharsets.UTF_8);
+
+			List<String> cmd = new ArrayList<>();
+			cmd.add("pango-view");
+			cmd.add("--font=" + fontSpec + " " + pixelSize);
+			cmd.add("--file=" + tmpText.toAbsolutePath());
+			cmd.add("--background=transparent");
+			cmd.add("--no-display");
+			cmd.add("--output=" + tmpPng.toAbsolutePath());
+
+			ProcessBuilder pb = new ProcessBuilder(cmd);
+			pb.redirectErrorStream(true);
+			Process p = pb.start();
+
+			// consume stdout/stderr
+			try (InputStream is = p.getInputStream()) {
+				is.transferTo(OutputStream.nullOutputStream());
+			}
+			int exit = p.waitFor();
+			if (exit != 0) {
+				throw new IOException("pango-view failed with exit code " + exit);
+			}
+
+			byte[] pngBytes = Files.readAllBytes(tmpPng);
+			String base64 = Base64.getEncoder().encodeToString(pngBytes);
+			String dataUrl = "data:image/png;base64," + base64;
+			myanmarImageCache.put(cacheKey, dataUrl);
+			return dataUrl;
+		} finally {
+			try { Files.deleteIfExists(tmpText); } catch (Exception ignored) {}
+			try { Files.deleteIfExists(tmpPng); } catch (Exception ignored) {}
+		}
+	}
+
 	/**
-	 * Replace <span class="myanmar">...</span> with inline PNG data URLs.
-	 * IMPORTANT: run this after template variables have been replaced (i.e., after Velocity).
+	 * Replace elements with class "myanmar" using jsoup with inline PNG images.
+	 * Tries Java2D first, then pango fallback if Java2D fails or produces likely-broken output.
 	 */
-	private InputStream replaceMyanmarSpansWithImages(InputStream htmlInput, String fontPath, float fontSize) throws Exception {
-		// Read HTML fully
+	private byte[] replaceMyanmarElementsWithImages(InputStream htmlInput, String fontPath, float fontSize) throws Exception {
 		String html = new String(htmlInput.readAllBytes(), StandardCharsets.UTF_8);
 
-		// Pattern to match <span ... class="... myanmar ...">...</span>
-		Pattern p = Pattern.compile("(?i)<span\\b[^>]*\\bclass\\s*=\\s*['\"][^'\"]*\\bmyanmar\\b[^'\"]*['\"][^>]*>(.*?)</span>", Pattern.DOTALL);
-		Matcher m = p.matcher(html);
-		StringBuffer sb = new StringBuffer();
-		while (m.find()) {
-			String inner = m.group(1).trim();
-			if (inner.isEmpty()) {
-				m.appendReplacement(sb, m.group(0));
-				continue;
-			}
+		org.jsoup.nodes.Document doc = Jsoup.parse(html);
+		Elements elems = doc.getElementsByClass("myanmar");
+		for (Element el : elems) {
+			String text = el.text();
+			if (text == null || text.trim().isEmpty()) continue;
 
-			// Remove inner tags if any (simple cleanup). For complex HTML, consider jsoup approach.
-			String plainText = inner.replaceAll("<[^>]+>", "").trim();
-			if (plainText.isEmpty()) {
-				m.appendReplacement(sb, m.group(0));
-				continue;
-			}
-
-			String dataUrl;
+			String dataUrl = null;
+			// Attempt Java2D render
 			try {
-				dataUrl = renderTextToDataUrl(plainText, fontPath, fontSize, Color.BLACK);
-			} catch (Exception ex) {
-				LOGGER.warn("Failed to rasterize myanmar text '{}': {}", plainText, ex.getMessage());
-				m.appendReplacement(sb, m.group(0));
+				dataUrl = renderTextToDataUrlJava2D(text, fontPath, fontSize, Color.BLACK);
+				// Quick heuristic: ensure dataUrl non-empty
+				if (dataUrl == null || !dataUrl.startsWith("data:image/png;base64,")) {
+					dataUrl = null;
+				}
+			} catch (Throwable t) {
+				LOGGER.debug("Java2D render failed for '{}': {}", text, t.getMessage());
+				dataUrl = null;
+			}
+
+			// If Java2D failed, try pango (if available)
+			if (dataUrl == null) {
+				try {
+					// fontSpec: family name (system must have the font installed). Use font filename as fallback name.
+					String fontSpec = "Noto Sans Myanmar";
+					dataUrl = renderTextWithPango(text, fontSpec, Math.round(fontSize));
+				} catch (Throwable t) {
+					LOGGER.warn("Pango render failed for '{}': {}", text, t.getMessage());
+					dataUrl = null;
+				}
+			}
+
+			// If both failed, skip replacement
+			if (dataUrl == null) {
+				LOGGER.warn("Could not rasterize Myanmar text, leaving original element: {}", text);
 				continue;
 			}
 
-			// Build replacement img tag. Use alt attribute to keep accessibility and for fallback.
-			String imgTag = "<img src=\"" + dataUrl + "\" style=\"vertical-align:middle; display:inline-block;\" alt=\"" + escapeHtmlAttribute(plainText) + "\"/>";
-			imgTag = Matcher.quoteReplacement(imgTag);
-			m.appendReplacement(sb, imgTag);
+			// Replace element with img preserving id/class
+			Element img = doc.createElement("img");
+			img.attr("src", dataUrl);
+			img.attr("alt", text);
+			// copy style attribute if present to preserve layout (optional)
+			if (el.hasAttr("style")) img.attr("style", el.attr("style"));
+			el.replaceWith(img);
 		}
-		m.appendTail(sb);
 
-		return new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
+		return doc.html().getBytes(StandardCharsets.UTF_8);
 	}
 
 	// Minimal HTML attribute escaper for alt text (keeps it safe inside double quotes)
