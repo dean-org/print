@@ -5,7 +5,6 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.2.5</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>io.mosip.print</groupId>
@@ -40,7 +39,6 @@
 		<maven.jacoco.version>0.8.5</maven.jacoco.version>
 		<maven.sonar.plugin.version>3.7.0.1746</maven.sonar.plugin.version>
 		<maven.javadoc.version>3.0.1</maven.javadoc.version>
-        <spring.boot.version>2.0.2.RELEASE</spring.boot.version>
         <spring.data.jpa.version>2.0.7.RELEASE</spring.data.jpa.version>
         <spring.security.test.version>5.0.5.RELEASE</spring.security.test.version>
         <spring-cloud-config.version>2.0.0.RELEASE</spring-cloud-config.version>
@@ -70,7 +68,6 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
-			<version>2.0.2.RELEASE</version>
 			<exclusions>
 				<exclusion>
 					<groupId>com.fasterxml.jackson.datatype</groupId>
@@ -81,7 +78,6 @@
 		<dependency>
 		    <groupId>org.springframework.cloud</groupId>
 		    <artifactId>spring-cloud-starter-config</artifactId>
-		    <version>2.0.2.RELEASE</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.bouncycastle</groupId>
