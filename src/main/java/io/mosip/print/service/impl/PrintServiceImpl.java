@@ -390,9 +390,9 @@ public class PrintServiceImpl implements PrintService {
             attributes.put(IdType.RID.toString(), registrationId);
 
             String prefLangAttr = (String) attributes.get(userPreferredLanguageAttribute);
+			preferredLang = prefLangAttr;
             printLogger.info("userPreferredLanguageAttribute: {}, prefLangAttr: {}, languageCodes: {}", userPreferredLanguageAttribute, prefLangAttr, languageCodes);
             if (prefLangAttr != null && languageCodes != null && !languageCodes.isEmpty()) {
-				preferredLang = prefLangAttr;
                 templateLang = (String) languageCodes.get(Base64.encodeBase64String(prefLangAttr.getBytes()));
             }
             if (!StringUtils.hasText(templateLang)) {
