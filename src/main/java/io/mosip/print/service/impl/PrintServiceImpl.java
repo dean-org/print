@@ -1018,9 +1018,9 @@ public class PrintServiceImpl implements PrintService {
     g2d.drawString(text, x, y);
     g2d.dispose();
 
-    // Store inside POD temp directory
-    File outputFile = new File("/tmp/" + fileName + ".png");
-    ImageIO.write(image, "png", outputFile);
+    // // Store inside POD temp directory
+    // File outputFile = new File("/tmp/" + fileName + ".png");
+    // ImageIO.write(image, "png", outputFile);
 
     return outputFile.getAbsolutePath();
 }
