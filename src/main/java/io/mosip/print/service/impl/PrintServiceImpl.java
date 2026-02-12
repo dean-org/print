@@ -323,6 +323,7 @@ public class PrintServiceImpl implements PrintService {
         String template = UIN_CARD_TEMPLATE;
         byte[] pdfBytes = null;
         String templateLang = null;
+		String preferredLang = null;
 
         try {
 
@@ -351,6 +352,7 @@ public class PrintServiceImpl implements PrintService {
             String prefLangAttr = (String) attributes.get(userPreferredLanguageAttribute);
             printLogger.info("userPreferredLanguageAttribute: {}, prefLangAttr: {}, languageCodes: {}", userPreferredLanguageAttribute, prefLangAttr, languageCodes);
             if (prefLangAttr != null && languageCodes != null && !languageCodes.isEmpty()) {
+				preferredLang = prefLangAttr;
                 templateLang = (String) languageCodes.get(Base64.encodeBase64String(prefLangAttr.getBytes()));
             }
             if (!StringUtils.hasText(templateLang)) {
@@ -560,7 +562,7 @@ public class PrintServiceImpl implements PrintService {
         try {
             List<String> emailIds = Arrays.asList(residentEmailId, defaultEmailIds);
             List<NotificationResponseDTO>  notificationResponseDTOs = notificationUtil.emailNotification(emailIds,null,
-                    ACCT_EMAIL, ACCT_EMAIL_SUB, attributes, null, templateLang);
+                    ACCT_EMAIL, ACCT_EMAIL_SUB, attributes, null, preferredLang);
             notificationResponseDTOs.forEach(responseDTO ->
                 printLogger.info("Account creation notification sent successfully via Email, server response..{}", responseDTO)
             );
@@ -575,7 +577,7 @@ public class PrintServiceImpl implements PrintService {
             try {
                 List<String> emailIds = Arrays.asList(residentEmailId, defaultEmailIds);
                 List<NotificationResponseDTO> responseDTOs = notificationUtil.emailNotification(emailIds, fileName,
-                        UIN_CARD_EMAIL, UIN_CARD_EMAIL_SUB, attributes, pdfbytes, templateLang);
+                        UIN_CARD_EMAIL, UIN_CARD_EMAIL_SUB, attributes, pdfbytes, preferredLang);
                 responseDTOs.forEach(responseDTO ->
                         printLogger.info("UIN sent successfully via Email, server response..{}", responseDTO)
                 );
