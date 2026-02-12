@@ -56,6 +56,17 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import javax.imageio.ImageIO;
+import java.util.Base64;
+
 @Service
 public class PrintServiceImpl implements PrintService {
 
@@ -365,6 +376,11 @@ public class PrintServiceImpl implements PrintService {
 			// String uid = decryptedJson.getString("UID");
 
             setTemplateAttributes(decryptedJson.toString(), attributes);
+			String myanmarName = (String) attributes.get("fullName_bur"); // adjust key if different
+			if (myanmarName != null && !myanmarName.isEmpty()) {
+			    String imagePath = convertTextToImageFile(myanmarName, uin + "_name");
+			    attributes.put("myanmarNameImage", "file:" + imagePath);
+			}
             attributes.put(IdType.UIN.toString(), uin);
 			// attributes.put(IdType.UID.toString(), uid);
             attributes.put(IdType.RID.toString(), registrationId);
@@ -974,4 +990,39 @@ public class PrintServiceImpl implements PrintService {
 
         return data;
     }
+	private String convertTextToImageFile(String text, String fileName) throws Exception {
+
+    int width = 600;
+    int height = 120;
+
+    BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+    Graphics2D g2d = image.createGraphics();
+
+    g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+    g2d.setColor(Color.WHITE);
+    g2d.fillRect(0, 0, width, height);
+
+    Font font = Font.createFont(Font.TRUETYPE_FONT,
+            new File("/home/mosip/fonts/NotoSansMyanmar-Regular.ttf"))
+            .deriveFont(40f);
+
+    g2d.setFont(font);
+    g2d.setColor(Color.BLACK);
+
+    FontMetrics fm = g2d.getFontMetrics();
+    int x = 20;
+    int y = ((height - fm.getHeight()) / 2) + fm.getAscent();
+
+    g2d.drawString(text, x, y);
+    g2d.dispose();
+
+    // Store inside POD temp directory
+    File outputFile = new File("/tmp/" + fileName + ".png");
+    ImageIO.write(image, "png", outputFile);
+
+    return outputFile.getAbsolutePath();
+}
+
 }
