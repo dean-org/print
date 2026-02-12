@@ -68,7 +68,7 @@ import javax.imageio.ImageIO;
 
 @Service
 public class PrintServiceImpl implements PrintService {
-
+	
     private static int passwordLengthPerAttribute=4;
     /**
      * The Constant FILE_SEPARATOR.
@@ -229,6 +229,9 @@ public class PrintServiceImpl implements PrintService {
     @Autowired
     private NotificationUtil notificationUtil;
 
+	 public String preferredLang = null;
+	
+
     public boolean generateCard(EventModel eventModel) {
         boolean isPrinted = false;
         try {
@@ -333,8 +336,7 @@ public class PrintServiceImpl implements PrintService {
         String template = UIN_CARD_TEMPLATE;
         byte[] pdfBytes = null;
         String templateLang = null;
-		String preferredLang = null;
-
+		
         try {
 
             credentialSubject = getCrdentialSubject(credential);
