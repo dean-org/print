@@ -715,8 +715,8 @@ public class PrintServiceImpl implements PrintService {
 		ObjectMapper mapper = new ObjectMapper();
 		JsonNode fullJson = mapper.readTree(qrJsonObj.toString());
 		ObjectNode qrJson = mapper.createObjectNode();
-	    String fullName = fullJson.at("/fullName/0/value").asText().replace("\u200C", "");
-		String fullNameEnglish = fullJson.at("/fullNameEnglish/0/value").asText().replace("\u200C", "");
+	 //    String fullName = fullJson.at("/fullName/0/value").asText().replace("\u200C", "");
+		// String fullNameEnglish = fullJson.at("/fullNameEnglish/0/value").asText().replace("\u200C", "");
 		
 		JsonNode fullNameNode = fullJson.path("fullName");
 		String fullName = "";
