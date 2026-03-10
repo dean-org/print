@@ -715,25 +715,25 @@ public class PrintServiceImpl implements PrintService {
 		ObjectMapper mapper = new ObjectMapper();
 		JsonNode fullJson = mapper.readTree(qrJsonObj.toString());
 		ObjectNode qrJson = mapper.createObjectNode();
-	 //    String fullName = fullJson.at("/fullName/0/value").asText().replace("\u200C", "");
-		// String fullNameEnglish = fullJson.at("/fullNameEnglish/0/value").asText().replace("\u200C", "");
-		
-		JsonNode fullNameNode = fullJson.get("fullName");
+
 		String fullName = "";
-		if (fullNameNode != null && fullNameNode.isArray() && fullNameNode.size() > 0) {
-		    JsonNode firstNode = fullNameNode.get(0);
-		    if (firstNode.has("value")) {
-		        fullName = firstNode.get("value").asText("").replace("\u200C", "").trim();
+		String fullNameStr = fullJson.path("fullName").asText(""); // This is a JSON string
+	    printLogger.info("fullname", fullName);
+		if (!fullNameStr.isEmpty()) {
+		    // Parse the inner array JSON
+		    JsonNode fullNameArray = mapper.readTree(fullNameStr);
+		    if (fullNameArray.isArray() && fullNameArray.size() > 0) {
+		        fullName = fullNameArray.get(0).path("value").asText("").replace("\u200C", "").trim();
 		    }
 		}
 		qrJson.put("fullName", fullName);
-				
-	   JsonNode fullNameEngNode = fullJson.path("fullNameEnglish");
+	
 		String fullNameEnglish = "";
-		if (fullNameEngNode != null && fullNameEngNode.isArray() && fullNameEngNode.size() > 0) {
-		    JsonNode firstNode = fullNameEngNode.get(0);
-		    if (firstNode.has("value")) {
-		        fullNameEnglish = firstNode.get("value").asText("").replace("\u200C", "").trim();
+		String fullNameEngStr = fullJson.path("fullNameEnglish").asText("");
+		if (!fullNameEngStr.isEmpty()) {
+		    JsonNode fullNameEngArray = mapper.readTree(fullNameEngStr);
+		    if (fullNameEngArray.isArray() && fullNameEngArray.size() > 0) {
+		        fullNameEnglish = fullNameEngArray.get(0).path("value").asText("").replace("\u200C", "").trim();
 		    }
 		}
 		qrJson.put("fullNameEnglish", fullNameEnglish);
