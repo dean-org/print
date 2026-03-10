@@ -1003,8 +1003,8 @@ public class PrintServiceImpl implements PrintService {
 	private String convertTextToImageFile(String text, String fileName) throws Exception {
 
     
-    int width = 600;
-    int height = 120;
+    int width = 900;
+    int height = 150;
 
     BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
     Graphics2D g2d = image.createGraphics();
@@ -1015,15 +1015,22 @@ public class PrintServiceImpl implements PrintService {
     g2d.setColor(Color.WHITE);
     g2d.fillRect(0, 0, width, height);
 
-    Font font = Font.createFont(Font.TRUETYPE_FONT,
-            new File("/home/mosip/fonts/NotoSansMyanmar-Regular.ttf"))
-            .deriveFont(40f);
+    // Font font = Font.createFont(Font.TRUETYPE_FONT,
+    //         new File("/home/mosip/fonts/NotoSansMyanmar-Regular.ttf"))
+    //         .deriveFont(40f);
+
+	 Font baseFont = Font.createFont(
+            Font.TRUETYPE_FONT,
+            new File("/home/mosip/fonts/NotoSansMyanmar-Regular.ttf")
+    );
+    // Bigger + Bold font
+    Font font = baseFont.deriveFont(Font.BOLD, 60f);
 
     g2d.setFont(font);
     g2d.setColor(Color.BLACK);
 
     FontMetrics fm = g2d.getFontMetrics();
-    int x = 20;
+    int x = 10;
     int y = ((height - fm.getHeight()) / 2) + fm.getAscent();
 
     g2d.drawString(text, x, y);
