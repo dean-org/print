@@ -719,6 +719,7 @@ public class PrintServiceImpl implements PrintService {
 		// String fullNameEnglish = fullJson.at("/fullNameEnglish/0/value").asText().replace("\u200C", "");
 		
 		JsonNode fullNameNode = fullJson.get("fullName");
+		String fullName = "";
 		if (fullNameNode != null && fullNameNode.isArray() && fullNameNode.size() > 0) {
 		    JsonNode firstNode = fullNameNode.get(0);
 		    if (firstNode.has("value")) {
