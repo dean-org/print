@@ -718,7 +718,18 @@ public class PrintServiceImpl implements PrintService {
 	    String fullName = fullJson.at("/fullName/0/value").asText().replace("\u200C", "");
 		String fullNameEnglish = fullJson.at("/fullNameEnglish/0/value").asText().replace("\u200C", "");
 		
+		JsonNode fullNameNode = fullJson.path("fullName");
+		String fullName = "";
+		if (fullNameNode.isArray() && fullNameNode.size() > 0) {
+		    fullName = fullNameNode.get(0).path("value").asText().replace("\u200C", "");
+		}
 		qrJson.put("fullName", fullName);
+				
+	   JsonNode fullNameEngNode = fullJson.path("fullNameEnglish");
+		String fullNameEnglish = "";
+		if (fullNameEngNode.isArray() && fullNameEngNode.size() > 0) {
+			fullNameEnglish = fullNameEngNode.get(0).path("value").asText().replace("\u200C", "");
+		}
 		qrJson.put("fullNameEnglish", fullNameEnglish);
 		
 		// Extract other simple fields
@@ -730,9 +741,9 @@ public class PrintServiceImpl implements PrintService {
 				
         if(isQrCodeWithLogoEnabled) {
             BufferedImage logoImage = ImageIO.read(new ByteArrayInputStream(Base64.decodeBase64(qrCodeLogo)));
-            qrCodeBytes = qrCodeGenerator.generateQrCodeWithLogo(qrJson.toString(), QrVersion.V30, logoImage);
+            qrCodeBytes = qrCodeGenerator.generateQrCodeWithLogo(qrJson.toString(), QrVersion.V10, logoImage);
         } else {
-            qrCodeBytes = qrCodeGenerator.generateQrCode(qrJson.toString(), QrVersion.V30);
+            qrCodeBytes = qrCodeGenerator.generateQrCode(qrJson.toString(), QrVersion.V10);
         }
         if (qrCodeBytes != null) {
             String imageString = Base64.encodeBase64String(qrCodeBytes);
