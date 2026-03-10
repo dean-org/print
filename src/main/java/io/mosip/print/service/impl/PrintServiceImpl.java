@@ -65,6 +65,9 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import javax.imageio.ImageIO;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Service
 public class PrintServiceImpl implements PrintService {
@@ -708,11 +711,28 @@ public class PrintServiceImpl implements PrintService {
             qrJsonObj.remove("biometrics");
         }
         byte[] qrCodeBytes = null;
+
+		ObjectMapper mapper = new ObjectMapper();
+		JsonNode fullJson = mapper.readTree(qrJsonObj.toString());
+		ObjectNode qrJson = mapper.createObjectNode();
+	    String fullName = fullJson.at("/fullName/0/value").asText().replace("\u200C", "");
+		String fullNameEnglish = fullJson.at("/fullNameEnglish/0/value").asText().replace("\u200C", "");
+		
+		qrJson.put("fullName", fullName);
+		qrJson.put("fullNameEnglish", fullNameEnglish);
+		
+		// Extract other simple fields
+		qrJson.put("phone", fullJson.path("phone").asText());
+		qrJson.put("email", fullJson.path("email").asText());
+		qrJson.put("dateOfBirth", fullJson.path("dateOfBirth").asText());
+		qrJson.put("UID", fullJson.path("UID").asText());
+		qrJson.put("UIN", fullJson.path("UIN").asText());
+				
         if(isQrCodeWithLogoEnabled) {
             BufferedImage logoImage = ImageIO.read(new ByteArrayInputStream(Base64.decodeBase64(qrCodeLogo)));
-            qrCodeBytes = qrCodeGenerator.generateQrCodeWithLogo(qrJsonObj.toString(), QrVersion.V30, logoImage);
+            qrCodeBytes = qrCodeGenerator.generateQrCodeWithLogo(qrJson.toString(), QrVersion.V30, logoImage);
         } else {
-            qrCodeBytes = qrCodeGenerator.generateQrCode(qrJsonObj.toString(), QrVersion.V30);
+            qrCodeBytes = qrCodeGenerator.generateQrCode(qrJson.toString(), QrVersion.V30);
         }
         if (qrCodeBytes != null) {
             String imageString = Base64.encodeBase64String(qrCodeBytes);
