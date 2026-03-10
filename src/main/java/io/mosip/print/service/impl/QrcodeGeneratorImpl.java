@@ -138,4 +138,24 @@ public class QrcodeGeneratorImpl implements QrCodeGenerator<QrVersion> {
 		Arrays.stream(data.split("(?<=\\G.{8})")).forEach(s -> stringBuilder.append((char) Integer.parseInt(s, 2))); 
 		return generateQrCode(stringBuilder.toString(), version);
 	}
+
+	public static BufferedImage resizeImage(BufferedImage originalImage, int maxWidth, int maxHeight) {
+		int originalWidth = originalImage.getWidth();
+		int originalHeight = originalImage.getHeight();
+
+		// Calculate the scaling factor while preserving aspect ratio
+		double scale = Math.min((double) maxWidth / originalWidth, (double) maxHeight / originalHeight);
+
+		int newWidth = (int) (originalWidth * scale);
+		int newHeight = (int) (originalHeight * scale);
+
+		// Create a new buffered image with the new dimensions
+		BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+
+		Graphics2D g2d = resizedImage.createGraphics();
+		g2d.drawImage(originalImage.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH), 0, 0, null);
+		g2d.dispose();
+
+		return resizedImage;
+	}
 }
