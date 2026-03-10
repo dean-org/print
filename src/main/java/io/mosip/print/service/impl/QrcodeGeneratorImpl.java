@@ -85,6 +85,13 @@ public class QrcodeGeneratorImpl implements QrCodeGenerator<QrVersion> {
 		QrcodegeneratorUtils.verifyInput(data, version);
 		configMap.put(EncodeHintType.QR_VERSION, version.getVersion());
 		BitMatrix byteMatrix = null;
+		
+		int maxLogoSize = version.getSize() * 30 / 100;
+		// Resize logo if it is too big
+		if (logoImage != null && (logoImage.getWidth() > maxLogoSize || logoImage.getHeight() > maxLogoSize)) {
+			logoImage = resizeImage(logoImage, maxLogoSize, maxLogoSize);
+		}
+		
 		try {
 			byteMatrix = qrCodeWriter.encode(data, BarcodeFormat.QR_CODE, version.getSize(), version.getSize(),
 					configMap);
