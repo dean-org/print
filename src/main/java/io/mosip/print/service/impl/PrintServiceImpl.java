@@ -718,17 +718,22 @@ public class PrintServiceImpl implements PrintService {
 	 //    String fullName = fullJson.at("/fullName/0/value").asText().replace("\u200C", "");
 		// String fullNameEnglish = fullJson.at("/fullNameEnglish/0/value").asText().replace("\u200C", "");
 		
-		JsonNode fullNameNode = fullJson.path("fullName");
-		String fullName = "";
-		if (fullNameNode.isArray() && fullNameNode.size() > 0) {
-		    fullName = fullNameNode.get(0).path("value").asText().replace("\u200C", "");
+		JsonNode fullNameNode = fullJson.get("fullName");
+		if (fullNameNode != null && fullNameNode.isArray() && fullNameNode.size() > 0) {
+		    JsonNode firstNode = fullNameNode.get(0);
+		    if (firstNode.has("value")) {
+		        fullName = firstNode.get("value").asText("").replace("\u200C", "").trim();
+		    }
 		}
 		qrJson.put("fullName", fullName);
 				
 	   JsonNode fullNameEngNode = fullJson.path("fullNameEnglish");
 		String fullNameEnglish = "";
-		if (fullNameEngNode.isArray() && fullNameEngNode.size() > 0) {
-			fullNameEnglish = fullNameEngNode.get(0).path("value").asText().replace("\u200C", "");
+		if (fullNameEngNode != null && fullNameEngNode.isArray() && fullNameEngNode.size() > 0) {
+		    JsonNode firstNode = fullNameEngNode.get(0);
+		    if (firstNode.has("value")) {
+		        fullNameEnglish = firstNode.get("value").asText("").replace("\u200C", "").trim();
+		    }
 		}
 		qrJson.put("fullNameEnglish", fullNameEnglish);
 		
