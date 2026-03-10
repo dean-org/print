@@ -741,9 +741,9 @@ public class PrintServiceImpl implements PrintService {
 				
         if(isQrCodeWithLogoEnabled) {
             BufferedImage logoImage = ImageIO.read(new ByteArrayInputStream(Base64.decodeBase64(qrCodeLogo)));
-            qrCodeBytes = qrCodeGenerator.generateQrCodeWithLogo(qrJson.toString(), QrVersion.V10, logoImage);
+            qrCodeBytes = qrCodeGenerator.generateQrCodeWithLogo(qrJson.toString(), QrVersion.V20, logoImage);
         } else {
-            qrCodeBytes = qrCodeGenerator.generateQrCode(qrJson.toString(), QrVersion.V10);
+            qrCodeBytes = qrCodeGenerator.generateQrCode(qrJson.toString(), QrVersion.V20);
         }
         if (qrCodeBytes != null) {
             String imageString = Base64.encodeBase64String(qrCodeBytes);
