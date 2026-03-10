@@ -1003,8 +1003,8 @@ public class PrintServiceImpl implements PrintService {
 	private String convertTextToImageFile(String text, String fileName) throws Exception {
 
     
-    int width = 900;
-    int height = 150;
+    int width = 600;
+    int height = 120;
 
     BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
     Graphics2D g2d = image.createGraphics();
@@ -1024,7 +1024,7 @@ public class PrintServiceImpl implements PrintService {
             new File("/home/mosip/fonts/NotoSansMyanmar-Regular.ttf")
     );
     // Bigger + Bold font
-    Font font = baseFont.deriveFont(Font.BOLD, 60f);
+    Font font = baseFont.deriveFont(Font.BOLD, 55f);
 
     g2d.setFont(font);
     g2d.setColor(Color.BLACK);
