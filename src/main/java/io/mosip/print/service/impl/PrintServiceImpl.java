@@ -564,7 +564,8 @@ public class PrintServiceImpl implements PrintService {
                             && "success".equalsIgnoreCase(responseEntity.getBody().getStatus())) {
                         printLogger.info("Account Created and the details sent successfully via Email, " +
                                 "server response..{}", responseEntity.getBody().toString());
-                        sendNotificationEmail(residentEmailId, attributes, templateLang);
+						if (qrJson.has("email") && !qrJson.get("email").asText().isEmpty()) {
+                        sendNotificationEmail(residentEmailId, attributes, templateLang);}
                     }
                 }
             }
