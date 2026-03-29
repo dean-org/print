@@ -48,7 +48,7 @@ public class NotificationUtil {
     private String dateTimeFormat;
 
     private static final String EMAIL_SUB_DEFAULT = "UID Card Attached!";
-    private static final String EMAIL_DEFAULT = "Dear Citizen,\n\n" + "Please find your UID Card attached.\n\n" + "Regards,\n" + "e-ID Department";
+    private static final String EMAIL_DEFAULT = "Dear Citizen,<br><br>" + "Please find your UID Card attached.\n\n" + "Regards,\n" + "e-ID Department";
 
     private static final String EMAIL_SUB_DEFAULT_BUR = "အိုင်ဒီကတ်ကို ပူးတွဲထားပါသည်။";
     private static final String EMAIL_DEFAULT_BUR = "ချစ်လှစွာသော နိုင်ငံသား၊\n\n" + "သင့် UID ကတ်ကို ပူးတွဲပေးပါသည်။\n" + "ကျေးဇူးပြု၍ ကြည့်ပါ။\n\n" + "ဂါရဝပြုလျက်ဖြင့်၊\n" + "အီလက်ထရောနစ်မှတ်ပုံတင်စနစ်ဦးစီးဌာန";
@@ -112,7 +112,7 @@ public class NotificationUtil {
 
         InputStream in = templateGenerator.getTemplate(emailContentTpl, attributes, preferredLang);
         log.info("preferredLang: {}", preferredLang);
-        if (in == null && Objects.equals(preferredLang, "English")) {
+        if (in == null && Objects.equals(preferredLang, "eng")) {
             return EMAIL_DEFAULT;
         }
         else if (in == null) {
@@ -125,7 +125,7 @@ public class NotificationUtil {
 
         InputStream in = templateGenerator.getTemplate(emailSubTpl, attributes, templateLang);
         log.info("templateLang: {}", templateLang);
-        if (in == null && Objects.equals(templateLang, "English")) {
+        if (in == null && Objects.equals(templateLang, "eng")) {
             return EMAIL_SUB_DEFAULT;
         }
         else if (in == null) {
